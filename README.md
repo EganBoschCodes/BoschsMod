@@ -155,6 +155,7 @@ Selection Commands:
 		deciding you want to flip or rotate it before putting it back.
 	/retry:
 		Will undo the last generation command you did, then redo it with the exact same
-		parameters and at the last position you used it. Useful if you don't exactly 				like the way a tree randomly generated, but the settings you used were good.
+		parameters and at the last position you used it. Useful if you don't exactly
+		like the way a tree randomly generated, but the settings you used were good.
 
 That is about it for now, but I plan to keep adding to this!
