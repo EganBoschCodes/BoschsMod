@@ -11,9 +11,11 @@ format for block templates!
 
 
 Block Palatte Formatting:
-Due to some weird things with how Minecraft handles commands, we are forced to use
-quotes occasionally. But if you are generating a structure, there are a number of
-pretty easy ways to generate exactly the type of block palatte you want!
+
+	Due to some weird things with how Minecraft handles commands, we are forced 
+	to use quotes occasionally. But if you are generating a structure, there 
+	are a number of pretty easy ways to generate exactly the type of block palatte
+	you want!
 
 	Basic: 
 		stone, or "stone"
