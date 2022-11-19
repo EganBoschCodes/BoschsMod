@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "boschsmod",
+  "version": "${version}",
+
+  "name": "Bosch's Mod",
+  "description": "Does whatever Bosch feels like doing.",
+  "authors": [
+    "Bosch"
+  ],
+  "contact": {
+    "homepage": "https://fabricmc.net/"
+  },
+
+  "license": "CC0-1.0",
+  "icon": "assets/modid/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "net.fabricmc.bosch.BoschMain"
+    ]
+  },
+  "mixins": [
+    "modid.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.14.9",
+    "fabric-api": "*",
+    "minecraft": "~1.19",
+    "java": ">=17"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}
