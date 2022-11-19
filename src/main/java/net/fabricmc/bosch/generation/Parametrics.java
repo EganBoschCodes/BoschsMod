@@ -88,7 +88,8 @@ public class Parametrics {
         Vec3d orthonormalTwo = orthonormalOne.crossProduct(heading).normalize();
 
         ArrayList<Vec3d> circleAround = new ArrayList<>();
-        for(double theta = 0; theta < 2 * Math.PI + 0.5 / Math.max(ra, rb); theta += 0.5 / Math.max(ra, rb)) {
+        double dt = 0.5 / Math.max(ra + 0.001, rb + 0.001);
+        for(double theta = 0; theta < 2 * Math.PI + dt; theta += dt) {
             circleAround.add(orthonormalOne.multiply(Math.sin(theta)).add(orthonormalTwo.multiply(Math.cos(theta))));
         }
 
@@ -97,9 +98,9 @@ public class Parametrics {
 
             for(Vec3d vec : circleAround) {
                 BlockPos bp = new BlockPos(position.add(vec.multiply(ra + (rb - ra) * (path / length))));
-                values.put("bx", (float)bp.getX());
-                values.put("by", (float)bp.getY());
-                values.put("bz", (float)bp.getZ());
+                values.put("x", (float)bp.getX());
+                values.put("y", (float)bp.getY());
+                values.put("z", (float)bp.getZ());
                 values.remove(blockExpr);
 
                 int palatteIndex = blockExpr.length() > 0 ? clamp(Expression.parse(blockExpr, values), palatte.length - 1) : 0;
