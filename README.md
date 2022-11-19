@@ -41,6 +41,7 @@ pretty easy ways to generate exactly the type of block palatte you want!
 
 
 Generation Commands:
+
 	/paintbucket [palatte] [radius]:
 		This command uses a block search algorithm to fill the region around
 		you that it can reach by only going through the blocks that you are
@@ -48,7 +49,6 @@ Generation Commands:
 		irregular shape, this command is great for filling the space. It will
 		only try placing the blocks within [radius] of you to prevent infinite
 		expansion if there is a gap in your container.
-		
 		Examples: /paintbucket iron_block 5.2
 			  /paintbucket "iron_block:gold_block" 10
 	
@@ -126,6 +126,7 @@ Generation Commands:
 
 
 Selection Commands:
+
 	/nah:
 		This will undo your most recent placement or generation command, whether it be
 		generating a tree, graphing a parametric, or pasting a selection. Super helpful.
