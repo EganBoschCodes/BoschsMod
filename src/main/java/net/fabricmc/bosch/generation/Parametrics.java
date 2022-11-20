@@ -23,6 +23,7 @@ public class Parametrics {
         PlacementHandler ph = new PlacementHandler(source.getWorld());
 
 
+
         String[] palatteStrings = StringArgumentType.getString(context, "block").split(",");
         BlockPalatte[] palatte = new BlockPalatte[palatteStrings.length];
         for (int i = 0; i < palatteStrings.length; i++){

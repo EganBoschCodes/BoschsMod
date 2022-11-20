@@ -170,6 +170,14 @@ public class Expression {
                     returnVal = evaluate( before + (Math.abs(evaledArgs[0])) + after, values);
                 }
 
+                if (funcName.equals("min")) {
+                    returnVal = evaluate( before + Math.min(evaledArgs[0], evaledArgs[1]) + after, values);
+                }
+
+                if (funcName.equals("max")) {
+                    returnVal = evaluate( before + Math.max(evaledArgs[0], evaledArgs[1]) + after, values);
+                }
+
                 if (returnVal.is) values.put(funcName+'('+innards+')', returnVal.val);
 
                 return returnVal;
@@ -302,6 +310,7 @@ public class Expression {
         return -1;
     }
 
+    //A monad is a monoid in the category of endofunctors...
     public static class Maybe {
         public boolean is = false;
         public float val;
