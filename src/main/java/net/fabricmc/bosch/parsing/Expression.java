@@ -4,294 +4,127 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 
-public class Expression {
+public abstract class Expression {
 
-    public static String extractExpr(String s, String valTag) {
+    public static Map<String, BiFunction<Maybe, Maybe, Maybe>> operators;
+    public static Map<String, BiFunction<ArrayList<Expression>, Map<String, Float>, Maybe>> functions;
+
+    static {
+        operators = new HashMap<>();
+        operators.put("+",  Maybe.map((a, b) -> a + b));
+        operators.put("-",  Maybe.map((a, b) -> a - b));
+        operators.put("*",  Maybe.map((a, b) -> a * b));
+        operators.put("/",  Maybe.map((a, b) -> a / b));
+        operators.put("^",  Maybe.map((a, b) -> (float)Math.pow(a, b)));
+        operators.put("&&",  Maybe.map((a, b) -> (a != 0.0f && b != 0.0f) ? 1.0f : 0.0f));
+        operators.put("||",  Maybe.map((a, b) -> (a != 0.0f || b != 0.0f) ? 1.0f : 0.0f));
+        operators.put(">",  Maybe.map((a, b) -> (a > b) ? 1.0f : 0.0f));
+        operators.put("<",  Maybe.map((a, b) -> (a < b) ? 1.0f : 0.0f));
+        operators.put("%",  Maybe.map((a, b) -> (float)(a - Math.floor(a / b) * b)));
+
+        functions = new HashMap<>();
+        functions.put("sqrt",  (args, vars) -> Maybe.mapDouble(Math::sqrt).apply(args.get(0).evaluate(vars)));
+        functions.put("sin",  (args, vars) -> Maybe.mapDouble(Math::sin).apply(args.get(0).evaluate(vars)));
+        functions.put("cos",  (args, vars) -> Maybe.mapDouble(Math::cos).apply(args.get(0).evaluate(vars)));
+        functions.put("atan",  (args, vars) -> Maybe.mapDouble(Math::atan).apply(args.get(0).evaluate(vars)));
+        functions.put("atan2",  (args, vars) -> Maybe.mapDouble(Math::atan2).apply(args.get(0).evaluate(vars), args.get(1).evaluate(vars)));
+        functions.put("min",  (args, vars) -> Maybe.mapDouble(Math::min).apply(args.get(0).evaluate(vars), args.get(1).evaluate(vars)));
+        functions.put("mag",  (args, vars) -> args.size() == 2 ? Maybe.map((x, y) -> (float)Math.sqrt(x*x + y*y)).apply(args.get(0).evaluate(vars), args.get(1).evaluate(vars)) : Maybe.map((x, y, z) -> (float)Math.sqrt(x*x + y*y + z*z)).apply(args.get(0).evaluate(vars), args.get(1).evaluate(vars), args.get(2).evaluate(vars)));
+        functions.put("within",  (args, vars) -> Maybe.map((x, y, z) -> Math.abs(x - y) < z ? 1.0f : 0.0f).apply(args.get(0).evaluate(vars), args.get(1).evaluate(vars), args.get(2).evaluate(vars)));
+        functions.put("random",  (args, vars) -> new Maybe((float) Math.random()));
+        functions.put("exp",  (args, vars) -> Maybe.mapDouble(Math::exp).apply(args.get(0).evaluate(vars)));
+        functions.put("abs",  (args, vars) -> Maybe.mapDouble(Math::abs).apply(args.get(0).evaluate(vars)));
+    }
+
+
+    public abstract Maybe evaluate(Map<String, Float> variables);
+
+    public static Expression parse (String s) {
         s = s.replaceAll("\\s", "");
-
-        String[] vals = s.split(";");
-        for (String val : vals) {
-            String[] valSplit = val.split("=");
-            if (valSplit[0].equals(valTag)) {
-                return valSplit[1];
-            }
-        }
-        return "";
-    }
-
-    public static Map<String, Float> clean(Map<String, Maybe> vals) {
-        Map<String, Float> cleanVals = new HashMap<>();
-        for(Map.Entry<String, Maybe> entry : vals.entrySet()) {
-            if (entry.getValue().is) cleanVals.put(entry.getKey(), entry.getValue().val);
-        }
-        return cleanVals;
-    }
-
-    public static Map<String, Maybe> extractAllValues(String s, Map<String, Float> values) {
-        s = s.replaceAll("\\s", "");
-
-        Map<String, Maybe> valMap = new HashMap<>();
-        String[] vals = s.split(";");
-        for (String val : vals) {
-            String[] valSplit = val.split("=");
-            Maybe evaledVal = parse(valSplit[1], values);
-            valMap.put(valSplit[0], evaledVal);
-            if (evaledVal.is) values.put(valSplit[0], evaledVal.val);
-        }
-        return valMap;
-    }
-
-    public static Maybe parse(String s, Map<String, Float> values) {
-        values.put("pi", (float)Math.PI);
-        values.put("e", (float)Math.E);
-
-        return evaluate(s.replaceAll("\\s", ""), values);
-    }
-
-    private static Maybe evaluate(String s, Map<String, Float> values) {
+        if (s.length() == 0) return new FloatExpr(Maybe.no("Empty string passed to parser!"));
 
         //System.out.println(s);
+        while(s.charAt(0) == '(' && s.charAt(s.length() - 1) == ')') {s = s.substring(1, s.length() - 1); }
 
-        try { return Maybe.yes(Float.parseFloat(s)); } catch (Exception ignored) {}
-        if (values.containsKey(s)) return Maybe.yes(values.get(s));
-        if (s.length() == 0) return Maybe.no();
-        if (s.charAt(0) == '-' && values.containsKey(s.substring(1))) return Maybe.yes(-values.get(s.substring(1)));
-
-        Maybe greater = applyOperation(s, values, ">", (a, b) -> {return a > b ? 1.0f : 0.0f;});
-        if (greater.is) return greater;
-
-        Maybe less = applyOperation(s, values, "<", (a, b) -> {return a < b ? 1.0f : 0.0f;});
-        if (less.is) return less;
-
-        Maybe and = applyOperation(s, values, "&&", (a, b) -> {return (a != 0.0f && b != 0.0f) ? 1.0f : 0.0f;});
-        if (and.is) return and;
-
-        Maybe or = applyOperation(s, values, "||", (a, b) -> {return (a != 0.0f || b != 0.0f) ? 1.0f : 0.0f;});
-        if (or.is) return or;
-
-        Maybe pow = applyOperation(s, values, "^", (a, b) -> {return (float)Math.pow(a, b);});
-        if (pow.is) return pow;
-
-        Maybe mod = applyOperation(s, values, "%", (a, b) -> {return (float)(a - Math.floor(a / b) * b);});
-        if (mod.is) return mod;
-
-        Maybe mult = applyOperation(s, values, "*", (a, b) -> {return a * b;});
-        if (mult.is) return mult;
-
-        Maybe div = applyOperation(s, values, "/", (a, b) -> {return a / b;});
-        if (div.is) return div;
-
-        Maybe add = applyOperation(s, values, "+", (a, b) -> {return a + b;});
-        if (add.is) return add;
-
-        Maybe sub = applyOperation(s, values, "-", (a, b) -> {return a - b;});
-        if (sub.is) return sub;
-
-        if (s.contains("(")) {
-            int parenIndex = s.indexOf("(");
-            if (parenIndex > 0 && orderOfOp(s.charAt(parenIndex - 1)) < 0) {
-                int funcIter = parenIndex - 1;
-                while (funcIter >= 0 && orderOfOp(s.charAt(funcIter)) < 0) {
-                    funcIter--;
-                }
-
-                String funcName = s.substring(funcIter + 1,parenIndex);
-
-                String innards = captureParenthesis(s, s.indexOf('('));
-                ArrayList<String> splitInnards = new ArrayList<>();
-                int argStart = 0;
-                int argEnd = 0;
-                int parenCount = 0;
-                while(argEnd < innards.length()) {
-                    if(innards.charAt(argEnd) == '(') {
-                        parenCount++;
-                    }
-                    if(innards.charAt(argEnd) == ')') {
-                        parenCount--;
-                    }
-                    if(parenCount == 0 && innards.charAt(argEnd) == ',') {
-                        splitInnards.add(innards.substring(argStart, argEnd));
-                        argStart = argEnd + 1;
-                    }
-                    argEnd++;
-                }
-                splitInnards.add(innards.substring(argStart, argEnd));
-                float[] evaledArgs = new float[splitInnards.size()];
-                for(int i = 0; i < splitInnards.size(); i++){
-                    Maybe evaledArg = evaluate(splitInnards.get(i), values);
-                    if (!evaledArg.is) return Maybe.no();
-                    evaledArgs[i] = evaledArg.val;
-                }
-
-                String before = s.substring(0, s.indexOf('(') - funcName.length());
-                String after = s.substring(s.indexOf('(') + innards.length() + 2);
-
-                Maybe returnVal = Maybe.no();
-
-                if (funcName.equals("sqrt")) {
-                    returnVal = evaluate( before + Math.sqrt((double)evaledArgs[0]) + after, values);
-                }
-
-                if (funcName.equals("sin")) {
-                    returnVal = evaluate( before + Math.sin((double)evaledArgs[0]) + after, values);
-                }
-
-                if (funcName.equals("cos")) {
-                    returnVal = evaluate( before + Math.cos((double)evaledArgs[0]) + after, values);
-                }
-
-                if (funcName.equals("atan")) {
-                    returnVal = evaluate( before + Math.atan((double)evaledArgs[0]) + after, values);
-                }
-
-                if (funcName.equals("atan2")) {
-                    returnVal = evaluate( before + Math.atan2((double)evaledArgs[0], (double)evaledArgs[1]) + after, values);
-                }
-
-                if (funcName.equals("mag")) {
-                    if(evaledArgs.length == 2)  { returnVal = evaluate( before + Math.sqrt((double)(evaledArgs[0] * evaledArgs[0] + evaledArgs[1] * evaledArgs[1])) + after, values); }
-                    else { returnVal = evaluate( before + Math.sqrt((double)(evaledArgs[0] * evaledArgs[0] + evaledArgs[1] * evaledArgs[1] + evaledArgs[2] * evaledArgs[2])) + after, values); }
-                }
-
-                if (funcName.equals("within")) {
-                    returnVal = evaluate( before + (Math.abs(evaledArgs[0] - evaledArgs[1]) < evaledArgs[2] ? 1.0 : 0.0) + after, values);
-                }
-
-                if(funcName.equals("random")) {
-                    returnVal = evaluate( before + (Math.random()) + after, values);
-                }
-
-                if(funcName.equals("exp")) {
-                    returnVal = evaluate( before + (Math.exp(evaledArgs[0])) + after, values);
-                }
-
-                if(funcName.equals("abs")) {
-                    returnVal = evaluate( before + (Math.abs(evaledArgs[0])) + after, values);
-                }
-
-                if (funcName.equals("min")) {
-                    returnVal = evaluate( before + Math.min(evaledArgs[0], evaledArgs[1]) + after, values);
-                }
-
-                if (funcName.equals("max")) {
-                    returnVal = evaluate( before + Math.max(evaledArgs[0], evaledArgs[1]) + after, values);
-                }
-
-                if (returnVal.is) values.put(funcName+'('+innards+')', returnVal.val);
-
-                return returnVal;
-            }
-
-            String innards = captureParenthesis(s, s.indexOf('('));
-            Maybe evaledParenthesis = evaluate(innards, values);
-            if (!evaledParenthesis.is) {
-                return Maybe.no();
-            }
-
-            String before = s.substring(0, s.indexOf('('));
-            String after = s.substring(s.indexOf('(') + innards.length() + 2);
-
-            return evaluate( before + evaledParenthesis.val + after, values);
+        try { return new FloatExpr(Maybe.yes(Float.parseFloat(s))); } catch (Exception ignored) {}
+        if (!Pattern.compile("[^a-zA-Z]").matcher(s).find()) return new SymbolExpr(s);
+        if (s.charAt(0) == '-' && !Pattern.compile("[^a-zA-Z]").matcher(s.substring(1)).find()) {
+            Expression left = new FloatExpr(Maybe.yes(-1.0f));
+            Expression right = new SymbolExpr(s.substring(1));
+            return new OperatorExpr(left, right, "*");
         }
 
-        return Maybe.no();
+        Expression e;
+        if ((e = splitOnOperators(s, new String[]{"&&", "||"})) != null) return e;
+        if ((e = splitOnOperators(s, new String[]{">", "<"})) != null) return e;
+        if ((e = splitOnOperators(s, new String[]{"+", "-"})) != null) return e;
+        if ((e = splitOnOperators(s, new String[]{"*", "/"})) != null) return e;
+        if ((e = splitOnOperators(s, new String[]{"^"})) != null) return e;
+        if ((e = splitOnOperators(s, new String[]{"%"})) != null) return e;
+
+        int parenIndex = s.indexOf('(');
+        if (parenIndex < 0 || s.charAt(s.length() - 1) != ')') { return new FloatExpr(Maybe.no("Invalid Value passed to parser! (" + s + ")")); }
+
+        String functionName = s.substring(0, parenIndex);
+        if (!functions.containsKey(functionName)) { return new FloatExpr(Maybe.no("Invalid Function passed to parser! (" + functionName + ")")); }
+
+        String[] argStrings = s.substring(parenIndex + 1, s.length() - 1).split(",");
+        ArrayList<Expression> args = new ArrayList<>();
+        for(String arg : argStrings) {
+            args.add(parse(arg));
+        }
+
+        return new FunctionExpr(args, functionName);
     }
 
-
-    private static int orderOfOp(char operation) {
-        if(operation == '+' || operation == '-') {
-            return 0;
+    public static Map<String, Expression> parseAll(String s) {
+        String[] split = s.split(";");
+        Map<String, Expression> returnVal = new HashMap<>();
+        for(String var : split) {
+            String[] varSplit = var.split("=");
+            returnVal.put(varSplit[0], parse(varSplit[1]));
         }
-        if(operation == '*' || operation == '/') {
-            return 1;
-        }
-        if(operation == '%') {
-            return 2;
-        }
-        if(operation == '^') {
-            return 3;
-        }
-        if(operation == '&' || operation == '|') {
-            return 4;
-        }
-        if(operation == '>' || operation == '<') {
-            return 5;
-        }
-        return -1;
+        return returnVal;
     }
 
-    private static Maybe applyOperation(String s, Map<String, Float> values, String operator, BiFunction<Float, Float, Float> logic) {
-        int index = topLevelIndexOf(s, operator);
-        if(index >= 0) {
-            String[] breakDown = captureOperation(s, operator, index);
-            Maybe val1 = evaluate(breakDown[1], values);
-            if (!val1.is) return Maybe.no();
-
-            Maybe val2 = evaluate(breakDown[2], values);
-            if (!val2.is) return Maybe.no();
-
-            float value = logic.apply(val1.val, val2.val);
-
-            values.put(breakDown[1] + operator + breakDown[2], value);
-            if(breakDown[0].length() + breakDown[3].length() > 0) {
-                return evaluate(breakDown[0] + value + breakDown[3], values);
-            }
-            return Maybe.yes(value);
+    public static Map<String, Maybe> evaluateAll(Map<String, Expression> exprs, Map<String, Float> variables) {
+        Map<String, Maybe> returnVal = new HashMap<>();
+        for(Map.Entry<String, Expression> entry : exprs.entrySet()) {
+            returnVal.put(entry.getKey(), entry.getValue().evaluate(variables));
         }
-        return Maybe.no();
+        return returnVal;
     }
 
-    private static String[] captureOperation(String s, String operator, int index) {
-        int order = orderOfOp(operator.charAt(0));
-        int leftIter = index - 1;
-        int leftParens = 0;
-        while(leftIter >= 0 && ((orderOfOp(s.charAt(leftIter)) == order || orderOfOp(s.charAt(leftIter)) < 0) || leftParens > 0)) {
-            if(s.charAt(leftIter) == ')') {
-                leftParens++;
-            }
-            if(s.charAt(leftIter) == '(') {
-                leftParens--;
-            }
-            leftIter--;
+    public static Map<String, Float> clean(Map<String, Maybe> exprs) {
+        Map<String, Float> returnVal = new HashMap<>();
+        for(Map.Entry<String, Maybe> entry : exprs.entrySet()) {
+            if (entry.getValue().is) returnVal.put(entry.getKey(), entry.getValue().val);
         }
-        if(leftIter >= 0 && s.charAt(leftIter) == '-' && (leftIter == 0 || orderOfOp(s.charAt(leftIter - 1)) > 0)) {
-            leftIter--;
-        }
-        int rightIter = index + operator.length();
-        int rightParens = 0;
-        while(rightIter < s.length()  && (rightParens > 0 || (orderOfOp(s.charAt(rightIter)) == order || orderOfOp(s.charAt(rightIter)) < 0) || (s.charAt(rightIter) == '-' && rightIter == index + operator.length()))) {
-            if(s.charAt(rightIter) == ')') {
-                rightParens--;
-            }
-            if(s.charAt(rightIter) == '(') {
-                rightParens++;
-            }
-            rightIter++;
-        }
-
-        //System.out.println("0: " + s.substring(0, leftIter+1));
-        //System.out.println("1: " + s.substring(leftIter+1, index));
-        //System.out.println("2: " + s.substring(index+operator.length(), rightIter));
-        //System.out.println("3: " + s.substring(rightIter));
-
-        return new String[]{s.substring(0, leftIter+1), s.substring(leftIter+1, index), s.substring(index+operator.length(), rightIter), s.substring(rightIter)};
+        return returnVal;
     }
 
-    private static String captureParenthesis(String s, int index) {
-        int openCount = 1;
-        int iter = index + 1;
-        while(iter < s.length() && openCount > 0) {
-            if(s.charAt(iter) == '(') {
-                openCount++;
+    private static Expression splitOnOperators(String s, String[] ops) {
+        int minIndex = s.length();
+        String op = "";
+        for(String o : ops) {
+            int index = topLevelIndexOf(s, o);
+            if (index >= 0 && index < minIndex) {
+                minIndex = index;
+                op = o;
             }
-            if(s.charAt(iter) == ')') {
-                openCount--;
-            }
-            iter++;
         }
-
-        return s.substring(index + 1, iter - 1);
+        if(minIndex < s.length()) {
+            Expression left = parse(s.substring(0, minIndex));
+            Expression right = parse(s.substring(minIndex + 1));
+            if (left instanceof FloatExpr && right instanceof FloatExpr) {
+                return new FloatExpr(operators.get(op).apply(left.evaluate(null), right.evaluate(null)));
+            }
+            return new OperatorExpr(left, right, op);
+        }
+        return null;
     }
 
     private static int topLevelIndexOf(String s, String operator) {
@@ -310,25 +143,107 @@ public class Expression {
         return -1;
     }
 
-    //A monad is a monoid in the category of endofunctors...
     public static class Maybe {
         public boolean is = false;
         public float val;
+        public String err;
         private Maybe (float f) {
             val = f;
             is = true;
         }
-        private Maybe () {}
+        private Maybe (String e) {err = e;}
 
-        public static Maybe no() {
-            return new Maybe();
+        public static Maybe no(String err) {
+            return new Maybe(err);
         }
         public static Maybe yes(float f) {
             return new Maybe(f);
         }
 
         public String toString() {
-            return "{ is: " + is + (is ? " , val: " + val + " }" : " }");
+            return "{ is: " + is + (is ? " , val: " + val + " }" : " , err: " + err + " }");
+        }
+
+        public static Function<Maybe, Maybe> mapDouble (Function<Double, Double> func) { return (a) -> {return a.is ? Maybe.yes(func.apply((double)a.val).floatValue()) : a;}; }
+        public static BiFunction<Maybe, Maybe, Maybe> mapDouble (BiFunction<Double, Double, Double> func) { return (a, b) -> {return a.is && b.is ? Maybe.yes(func.apply((double)a.val, (double)b.val).floatValue()) : !a.is ? a : b;}; }
+        public static TriFunction<Maybe> mapDouble (TriFunction<Double> func) { return (a, b, c) -> {return a.is && b.is && c.is ? Maybe.yes(func.apply((double)a.val, (double)b.val, (double)c.val).floatValue()) : !a.is ? a : !b.is ? b : c;}; }
+
+        public static Function<Maybe, Maybe> map (Function<Float, Float> func) { return (a) -> {return a.is ? Maybe.yes(func.apply(a.val)) : a;}; }
+        public static BiFunction<Maybe, Maybe, Maybe> map (BiFunction<Float, Float, Float> func) { return (a, b) -> {return a.is && b.is ? Maybe.yes(func.apply(a.val, b.val)) : !a.is ? a : b;}; }
+
+        public static TriFunction<Maybe> map (TriFunction<Float> func) { return (a, b, c) -> {return a.is && b.is && c.is ? Maybe.yes(func.apply(a.val, b.val, c.val)) : !a.is ? a : !b.is ? b : c;}; }
+    }
+
+    @FunctionalInterface
+    private interface TriFunction<T> {
+        T apply(T t, T u, T v);
+    }
+
+    private static class FloatExpr extends Expression {
+        private final Maybe value;
+
+        public FloatExpr(Maybe f) { value = f; }
+        @Override
+        public Maybe evaluate(Map<String, Float> variables) { return value; }
+
+        @Override
+        public String toString() { return value.toString(); }
+    }
+
+    private static class SymbolExpr extends Expression {
+        private final String symbol;
+
+        public SymbolExpr(String s) { symbol = s; }
+        @Override
+        public Maybe evaluate(Map<String, Float> variables) {
+            return variables.containsKey(symbol) ? Maybe.yes(variables.get(symbol)) : Maybe.no("Variable \"" + symbol +"\" is not defined!");
+        }
+
+        @Override
+        public String toString() { return "{" + symbol + "}"; }
+    }
+
+    private static class OperatorExpr extends Expression {
+        private final Expression left;
+        private final Expression right;
+        private final String operatorTag;
+
+        public OperatorExpr(Expression l, Expression r, String o) {
+            left = l;
+            right = r;
+            operatorTag = o;
+        }
+        @Override
+        public Maybe evaluate(Map<String, Float> variables) {
+            return operators.get(operatorTag).apply(left.evaluate(variables), right.evaluate(variables));
+        }
+
+        @Override
+        public String toString() {
+            return "{ " + left.toString() + " " + operatorTag + " " + right.toString() + " }";
+        }
+    }
+
+    private static class FunctionExpr extends Expression {
+
+        private final ArrayList<Expression> args;
+        private final String functionName;
+
+        public FunctionExpr(ArrayList<Expression> arguments, String function) {
+            args = arguments;
+            functionName = function;
+        }
+        @Override
+        public Maybe evaluate(Map<String, Float> variables) {
+            return functions.get(functionName).apply(args, variables);
+        }
+
+        public String toString() {
+            StringBuilder s = new StringBuilder("{ " + functionName + "(");
+            for(Expression e : args) {
+                s.append(e.toString()).append(", ");
+            }
+            return s.substring(0, s.length() - 2) + ") }";
         }
     }
 }

@@ -36,15 +36,20 @@ public class Parametrics {
 
         String expr = StringArgumentType.getString(context, "path");
 
-        String blockExpr = Expression.extractExpr(expr, "block");
-
+        Map<String, Expression> expressions = Expression.parseAll(expr);
         ArrayList<Map<String, Expression.Maybe>> positions = new ArrayList<>();
 
         BlockPos playerPos = new BlockPos(source.getPosition());
         for(; t < tmax; t += tstep) {
             HashMap<String, Float> variables = new HashMap<>();
             variables.put("t", t);
-            Map<String, Expression.Maybe> posVals = Expression.extractAllValues(expr, variables);
+            Map<String, Expression.Maybe> posVals = Expression.evaluateAll(expressions, variables);
+            for(Map.Entry<String, Expression.Maybe> entry : posVals.entrySet()) {
+                if(!entry.getValue().is) {
+                    source.sendMessage(Text.literal("Error when parsing the value of \""+entry.getKey()+"\" ("+entry.getValue().err+")!"));
+                    return 1;
+                }
+            }
             posVals.put("t", Expression.Maybe.yes(t));
             positions.add(posVals);
         }
@@ -69,7 +74,7 @@ public class Parametrics {
 
             float margin = valsAtB.containsKey("margin") && valsAtB.get("margin").is ? valsAtB.get("margin").val : 0.0f;
 
-            connectTheDots(ph, playerPos, palatte, Expression.clean(valsAtA), blockExpr, posA, posB, thicknessA, thicknessB, margin);
+            connectTheDots(ph, playerPos, palatte, Expression.clean(valsAtA), expressions.containsKey("block") ? expressions.get("block") : null, posA, posB, thicknessA, thicknessB, margin);
         }
 
         BoschMain.savePlacement(ph, source.getPlayer());
@@ -78,7 +83,7 @@ public class Parametrics {
         return 1;
     }
 
-    private static void connectTheDots(PlacementHandler ph, BlockPos playerPos, BlockPalatte[] palatte, Map<String, Float> values, String blockExpr, Vec3d a, Vec3d b, float ra, float rb, float margin) {
+    private static void connectTheDots(PlacementHandler ph, BlockPos playerPos, BlockPalatte[] palatte, Map<String, Float> values, Expression blockExpr, Vec3d a, Vec3d b, float ra, float rb, float margin) {
         Vec3d heading = b.subtract(a).normalize();
         float length = (float)b.subtract(a).length();
 
@@ -102,9 +107,9 @@ public class Parametrics {
                 values.put("x", (float)bp.getX());
                 values.put("y", (float)bp.getY());
                 values.put("z", (float)bp.getZ());
-                values.remove(blockExpr);
+                Expression.Maybe blockEval = blockExpr.evaluate(values);
 
-                int palatteIndex = blockExpr.length() > 0 ? clamp(Expression.parse(blockExpr, values), palatte.length - 1) : 0;
+                int palatteIndex = clamp(blockEval, palatte.length - 1);
                 ph.placeBlock(bp.add(playerPos), palatte[palatteIndex].getBlock());
             }
         }

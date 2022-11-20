@@ -29,8 +29,9 @@ public class Isometrics {
         int boxSize = IntegerArgumentType.getInteger(context, "box size");
 
         String expr = StringArgumentType.getString(context, "equation");
+        Map<String, Expression> expressions = Expression.parseAll(expr);
 
-        BlockPos playerPos = new BlockPos(source.getPosition());
+                BlockPos playerPos = new BlockPos(source.getPosition());
 
         for(float x = -boxSize; x < boxSize; x++) {
             for(float y = -boxSize; y < boxSize; y++) {
@@ -40,7 +41,7 @@ public class Isometrics {
                     pos.put("y", y);
                     pos.put("z", z);
 
-                    Map<String, Expression.Maybe> output = Expression.extractAllValues(expr, pos);
+                    Map<String, Expression.Maybe> output = Expression.evaluateAll(expressions, pos);
 
                     if(!output.containsKey("place")) {
                         source.sendMessage(Text.literal("Specify the \"place\" variable in the expression to determine whether or not that block gets placed!"));
@@ -49,12 +50,12 @@ public class Isometrics {
 
                     for(Map.Entry<String, Expression.Maybe> entry : output.entrySet()) {
                         if(!entry.getValue().is) {
-                            source.sendMessage(Text.literal("Error when parsing the value of \""+entry.getKey()+"\"!"));
+                            source.sendMessage(Text.literal("Error when parsing the value of \""+entry.getKey()+"\" ("+entry.getValue().err+")!"));
                             return 1;
                         }
                     }
 
-                    int palatteIndex = output.containsKey("block") && output.get("block").is ? (int)output.get("block").val : 0;
+                    int palatteIndex = output.containsKey("block") ? clamp(output.get("block"), palatte.length - 1) : 0;
 
                     if(output.get("place").val != 0.0f) {
                         ph.placeBlock(playerPos.add(x, y, z), palatte[palatteIndex].getBlock());
@@ -68,6 +69,12 @@ public class Isometrics {
         BoschMain.COMMAND_HISTORY.put(source.getPlayer(), new BoschMain.CommandHistory(context, Isometrics::generate));
 
         return 1;
+    }
+
+    private static int clamp(Expression.Maybe m, int max) {
+        if (!m.is) return 0;
+        int mval = (int)m.val;
+        return mval < 0 ? 0 : Math.min(mval, max);
     }
 
 }
