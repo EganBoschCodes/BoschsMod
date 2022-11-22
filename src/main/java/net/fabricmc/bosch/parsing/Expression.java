@@ -1,6 +1,7 @@
 package net.fabricmc.bosch.parsing;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -46,35 +47,45 @@ public abstract class Expression {
         s = s.replaceAll("\\s", "");
         if (s.length() == 0) return new FloatExpr(Maybe.no("Empty string passed to parser!"));
 
-        //System.out.println(s);
-        while(s.charAt(0) == '(' && s.charAt(s.length() - 1) == ')') {s = s.substring(1, s.length() - 1); }
+        System.out.println(s);
+        while(isJustAParenthesis(s)) {s = s.substring(1, s.length() - 1); }
 
         try { return new FloatExpr(Maybe.yes(Float.parseFloat(s))); } catch (Exception ignored) {}
         if (!Pattern.compile("[^a-zA-Z]").matcher(s).find()) return new SymbolExpr(s);
-        if (s.charAt(0) == '-' && !Pattern.compile("[^a-zA-Z]").matcher(s.substring(1)).find()) {
-            Expression left = new FloatExpr(Maybe.yes(-1.0f));
-            Expression right = new SymbolExpr(s.substring(1));
-            return new OperatorExpr(left, right, "*");
-        }
 
         Expression e;
         if ((e = splitOnOperators(s, new String[]{"&&", "||"})) != null) return e;
         if ((e = splitOnOperators(s, new String[]{">", "<"})) != null) return e;
         if ((e = splitOnOperators(s, new String[]{"+", "-"})) != null) return e;
+        if (s.charAt(0) == '-') {
+            Expression left = new FloatExpr(Maybe.yes(-1.0f));
+            Expression right = parse(s.substring(1));
+            return new OperatorExpr(left, right, "*");
+        }
         if ((e = splitOnOperators(s, new String[]{"*", "/"})) != null) return e;
         if ((e = splitOnOperators(s, new String[]{"^"})) != null) return e;
         if ((e = splitOnOperators(s, new String[]{"%"})) != null) return e;
 
         int parenIndex = s.indexOf('(');
-        if (parenIndex < 0 || s.charAt(s.length() - 1) != ')') { return new FloatExpr(Maybe.no("Invalid Value passed to parser! (" + s + ")")); }
+        if (parenIndex < 0 || s.charAt(s.length() - 1) != ')') { return new FloatExpr(Maybe.no("Invalid Value passed to parser! (\"" + s + "\")")); }
 
         String functionName = s.substring(0, parenIndex);
         if (!functions.containsKey(functionName)) { return new FloatExpr(Maybe.no("Invalid Function passed to parser! (" + functionName + ")")); }
 
-        String[] argStrings = s.substring(parenIndex + 1, s.length() - 1).split(",");
+        System.out.println(s.substring(parenIndex + 1, s.length() - 1));
+
+        String[] argStrings = topLevelArgumentSplit(s.substring(parenIndex + 1, s.length() - 1));
+
+        boolean allFloat = true;
         ArrayList<Expression> args = new ArrayList<>();
         for(String arg : argStrings) {
-            args.add(parse(arg));
+            Expression parsedArg = parse(arg);
+            args.add(parsedArg);
+            allFloat = allFloat && (parsedArg instanceof FloatExpr);
+        }
+
+        if(allFloat && args.size() > 0) {
+            return new FloatExpr(functions.get(functionName).apply(args, null));
         }
 
         return new FunctionExpr(args, functionName);
@@ -85,15 +96,21 @@ public abstract class Expression {
         Map<String, Expression> returnVal = new HashMap<>();
         for(String var : split) {
             String[] varSplit = var.split("=");
-            returnVal.put(varSplit[0], parse(varSplit[1]));
+
+            if (varSplit[1].charAt(0) != '[') returnVal.put(varSplit[0], parse(varSplit[1]));
         }
         return returnVal;
     }
 
     public static Map<String, Maybe> evaluateAll(Map<String, Expression> exprs, Map<String, Float> variables) {
         Map<String, Maybe> returnVal = new HashMap<>();
+
+        variables.put("pi", (float)Math.PI);
+        variables.put("e", (float)Math.E);
         for(Map.Entry<String, Expression> entry : exprs.entrySet()) {
-            returnVal.put(entry.getKey(), entry.getValue().evaluate(variables));
+            Maybe evaluatedVariable = entry.getValue().evaluate(variables);
+            returnVal.put(entry.getKey(), evaluatedVariable);
+            if (evaluatedVariable.is) variables.put(entry.getKey(), evaluatedVariable.val);
         }
         return returnVal;
     }
@@ -129,18 +146,57 @@ public abstract class Expression {
 
     private static int topLevelIndexOf(String s, String operator) {
         int scope = 0;
-        for(int search = 0; search <= s.length() - operator.length(); search++) {
+
+        for(int search = operator.equals("-") ? 1 : 0; search <= s.length() - operator.length(); search++) {
             if(s.charAt(search) == '(') {
                 scope++;
             }
             if(s.charAt(search) == ')') {
                 scope--;
             }
-            if(scope == 0 && s.substring(search, search + operator.length()).equals(operator)) {
+            if(scope == 0 && s.startsWith(operator, search)) {
                 return search;
             }
         }
         return -1;
+    }
+
+    private static String[] topLevelArgumentSplit(String s) {
+        int scope = 0;
+        ArrayList<String> arguments = new ArrayList<>();
+        int lastSplit = 0;
+
+        for(int search = 0; search < s.length(); search++) {
+            if(s.charAt(search) == '(') {
+                scope++;
+            }
+            if(s.charAt(search) == ')') {
+                scope--;
+            }
+            if(scope == 0 && s.charAt(search) == ',') {
+                arguments.add(s.substring(lastSplit, search));
+                lastSplit = search + 1;
+            }
+        }
+        arguments.add(s.substring(lastSplit));
+        System.out.println(arguments);
+
+        String[] arr = new String[arguments.size()];
+        System.out.println(Arrays.toString(arr));
+        return arguments.toArray(arr);
+    }
+
+    private static boolean isJustAParenthesis (String s) {
+        if (s.charAt(0) != '(' || s.charAt(s.length() - 1) != ')') return false;
+        int index = 1, depth = 1;
+        while(index < s.length() - 1) {
+            if (s.charAt(index) == '(') depth++;
+            if (s.charAt(index) == ')') depth--;
+            if (depth < 1) return false;
+
+            index++;
+        }
+        return true;
     }
 
     public static class Maybe {

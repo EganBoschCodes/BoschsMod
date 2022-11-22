@@ -1,5 +1,6 @@
 package net.fabricmc.bosch.parsing;
 
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.bosch.BoschMain;
 import net.minecraft.block.Block;
@@ -21,6 +22,15 @@ public class BlockPalatte {
     public BlockPalatte (String input) {
         String[] splitString = input.split(":");
         blockProbabilities = Stream.of(splitString).map(BlockProbability::new).toArray(BlockProbability[]::new);
+    }
+
+    public static BlockPalatte[] parse(String s) {
+        String[] palatteStrings = s.split(",");
+        BlockPalatte[] palatte = new BlockPalatte[palatteStrings.length];
+        for (int i = 0; i < palatteStrings.length; i++){
+            palatte[i] = new BlockPalatte(palatteStrings[i]);
+        }
+        return palatte;
     }
 
     public BlockState getBlock() {
@@ -88,11 +98,11 @@ public class BlockPalatte {
         return suggestions;
     }
 
-    private class BlockProbability {
+    private static class BlockProbability {
         public float weight;
-        private Block block;
+        private final Block block;
 
-        private boolean isLeaf;
+        private final boolean isLeaf;
 
         public BlockProbability(String input) {
             weight = 1;

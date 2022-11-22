@@ -12,73 +12,42 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.*;
 
 public class PaintBucket {
     public static int fill(CommandContext<ServerCommandSource> context) {
 
         BlockPalatte blockType = new BlockPalatte(StringArgumentType.getString(context, "block").split(",")[0]);
-        float radius = FloatArgumentType.getFloat(context, "radius");
-
+        float radius = FloatArgumentType.getFloat(context, "iterations");
 
         final ServerCommandSource source = context.getSource();
-        Vec3d sourcePos = source.getPosition();
+        BlockPos initialPos = BoschMain.LOCK.containsKey(source.getPlayer()) ? BoschMain.LOCK.get(source.getPlayer()) : new BlockPos(source.getPosition());
 
-
-        BlockPos initialPos = new BlockPos(sourcePos);
-
-        LinkedList<Long> positionsToFill = new LinkedList<Long>();
-        ArrayList<Long> marked = new ArrayList<Long>();
-        positionsToFill.add(initialPos.asLong());
+        Map<BlockPos, Boolean> history = new HashMap<>();
+        LinkedList<BlockPos> queue = new LinkedList<>();
+        history.put(initialPos, true);
+        queue.add(initialPos);
 
         ServerWorld world = source.getWorld();
         PlacementHandler ph = new PlacementHandler(world);
         BlockState initialState = world.getBlockState(initialPos);
 
         int iterations = 0;
-        while (iterations < 10000000 && !positionsToFill.isEmpty()) {
-            Long currentPosLong = positionsToFill.removeFirst();
-            BlockPos currentPos = BlockPos.fromLong(currentPosLong);
+        while (iterations < radius && !queue.isEmpty()) {
+            int l = queue.size();
+            for(int i = 0; i < l; i++) {
+                BlockPos currentPos = queue.removeFirst();
 
-            int dist2 = (initialPos.getX() - currentPos.getX()) * (initialPos.getX() - currentPos.getX())
-                    +(initialPos.getY() - currentPos.getY()) * (initialPos.getY() - currentPos.getY())
-                    +(initialPos.getZ() - currentPos.getZ()) * (initialPos.getZ() - currentPos.getZ());
+                if (world.getBlockState(currentPos) != initialState) { history.put(currentPos, false); continue; }
 
-            if (world.getBlockState(currentPos) != initialState || dist2 > radius * radius) {
-                continue;
-            }
+                ph.placeBlock(currentPos, blockType.getBlock());
 
-            ph.placeBlock(currentPos, blockType.getBlock());
-
-            if (!marked.contains(currentPos.add(1, 0, 0).asLong())) {
-                marked.add(currentPos.add(1, 0, 0).asLong());
-                positionsToFill.add(currentPos.add(1, 0, 0).asLong());
-            }
-
-            if (!marked.contains(currentPos.add(-1, 0, 0).asLong())) {
-                marked.add(currentPos.add(-1, 0, 0).asLong());
-                positionsToFill.add(currentPos.add(-1, 0, 0).asLong());
-            }
-
-            if (!marked.contains(currentPos.add(0, 1, 0).asLong())) {
-                marked.add(currentPos.add(0, 1, 0).asLong());
-                positionsToFill.add(currentPos.add(0, 1, 0).asLong());
-            }
-
-            if (!marked.contains(currentPos.add(0, -1, 0).asLong())) {
-                marked.add(currentPos.add(0, -1, 0).asLong());
-                positionsToFill.add(currentPos.add(0, -1, 0).asLong());
-            }
-
-            if (!marked.contains(currentPos.add(0, 0, 1).asLong())) {
-                marked.add(currentPos.add(0, 0, 1).asLong());
-                positionsToFill.add(currentPos.add(0, 0, 1).asLong());
-            }
-
-            if (!marked.contains(currentPos.add(0, 0, -1).asLong())) {
-                marked.add(currentPos.add(0, 0, -1).asLong());
-                positionsToFill.add(currentPos.add(0, 0, -1).asLong());
+                addToSearch(currentPos.add(1, 0, 0), history, queue);
+                addToSearch(currentPos.add(-1, 0, 0), history, queue);
+                addToSearch(currentPos.add(0, 1, 0), history, queue);
+                addToSearch(currentPos.add(0, -1, 0), history, queue);
+                addToSearch(currentPos.add(0, 0, 1), history, queue);
+                addToSearch(currentPos.add(0, 0, -1), history, queue);
             }
 
             iterations++;
@@ -88,6 +57,13 @@ public class PaintBucket {
         BoschMain.COMMAND_HISTORY.put(source.getPlayer(), new BoschMain.CommandHistory(context, PaintBucket::fill));
 
         return 1;
+    }
+
+    private static void addToSearch(BlockPos b, Map<BlockPos, Boolean> history, LinkedList<BlockPos> queue) {
+        if(history.containsKey(b)) return;
+
+        queue.add(b);
+        history.put(b, true);
     }
 
 }

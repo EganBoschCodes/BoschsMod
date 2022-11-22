@@ -35,7 +35,8 @@ public class Tree {
         
         final ServerCommandSource source = context.getSource();
 
-        Vec3d sourcePos = source.getPosition();
+        BlockPos lockPos = BoschMain.LOCK.getOrDefault(source.getPlayer(), null);
+        Vec3d sourcePos = lockPos != null ? new Vec3d(lockPos.getX(), lockPos.getY(), lockPos.getZ()): source.getPosition();;
         
         if(logBlock.getBlock() == null) {
             source.sendMessage(Text.literal("That is not a valid log block type!"));

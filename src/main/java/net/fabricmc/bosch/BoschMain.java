@@ -5,10 +5,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.bosch.generation.Isometrics;
-import net.fabricmc.bosch.generation.PaintBucket;
-import net.fabricmc.bosch.generation.Parametrics;
-import net.fabricmc.bosch.generation.Tree;
+import net.fabricmc.bosch.generation.*;
 import net.fabricmc.bosch.parsing.BlockPalatte;
 import net.fabricmc.bosch.selection.Clipboard;
 import net.fabricmc.bosch.selection.PlacementHandler;
@@ -32,11 +29,12 @@ import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
 public class BoschMain implements ModInitializer {
-	public static final Logger LOGGER = LoggerFactory.getLogger("boschsmod");
+	public static final Logger LOGGER = LoggerFactory.getLogger("boschs-mod");
 
-    public static HashMap<ServerPlayerEntity, BlockPos> MARK_1 = new HashMap<ServerPlayerEntity, BlockPos>();
-    public static HashMap<ServerPlayerEntity, BlockPos> MARK_2 = new HashMap<ServerPlayerEntity, BlockPos>();
-    public static HashMap<ServerPlayerEntity, Clipboard> CLIPBOARD = new HashMap<ServerPlayerEntity, Clipboard>();
+    public static HashMap<ServerPlayerEntity, BlockPos> MARK_1 = new HashMap<>();
+    public static HashMap<ServerPlayerEntity, BlockPos> MARK_2 = new HashMap<>();
+    public static HashMap<ServerPlayerEntity, Clipboard> CLIPBOARD = new HashMap<>();
+    public static HashMap<ServerPlayerEntity, BlockPos> LOCK = new HashMap<>();
     public static HashMap<ServerPlayerEntity, CommandHistory> COMMAND_HISTORY = new HashMap<>();
     public static ArrayList<String> BLOCK_IDS;
 
@@ -69,7 +67,7 @@ public class BoschMain implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("paintbucket")
             .then(argument("block", StringArgumentType.string())
                 .suggests((c, b) -> suggestMatching(BlockPalatte.getSuggestions(c, new String[] {"stone", "air"}), b))
-                .then(argument("radius", FloatArgumentType.floatArg(0.0f, 128.0f))
+                .then(argument("iterations", FloatArgumentType.floatArg(0.0f, 128.0f))
                     .executes(PaintBucket::fill)
         ))));
 
@@ -141,9 +139,17 @@ public class BoschMain implements ModInitializer {
                 .executes(SelectionCommands::redo)
         ));
 
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("lock")
+                .executes(SelectionCommands::lock)
+        ));
+
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("unlock")
+                .executes(SelectionCommands::unlock)
+        ));
+
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("parametric")
             .then(argument("block", StringArgumentType.string())
-                .suggests((c, b) -> suggestMatching(BlockPalatte.getSuggestions(c, new String[] {"stone", "diamond_block", "\"diamond_block:25%glowstone\""}), b))
+                .suggests((c, b) -> suggestMatching(BlockPalatte.getSuggestions(c, new String[] {"\"diamond_block:25%glowstone\"", "stone", "diamond_block"}), b))
                 .then(argument("from", FloatArgumentType.floatArg())
                     .then(argument("to", FloatArgumentType.floatArg())
                         .then(argument("step", FloatArgumentType.floatArg(0.0f))
@@ -158,6 +164,29 @@ public class BoschMain implements ModInitializer {
                         .then(argument("equation", StringArgumentType.greedyString())
                             .executes(Isometrics::generate)
         )))));
+
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("markpos")
+                .executes(Spline::mark)
+        ));
+
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("clearpos")
+                .executes(Spline::clear)
+        ));
+
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("spline")
+                .then(argument("block", StringArgumentType.string())
+                    .suggests((c, b) -> suggestMatching(BlockPalatte.getSuggestions(c, new String[] {"stone", "diamond_block"}), b))
+                    .executes(Spline::traceDefault)
+                    .then(argument("equation", StringArgumentType.greedyString())
+                            .executes(Spline::trace)
+        ))));
+
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("multiparametric")
+                .then(argument("block", StringArgumentType.string())
+                        .suggests((c, b) -> suggestMatching(BlockPalatte.getSuggestions(c, new String[] {"stone", "diamond_block"}), b))
+                        .then(argument("equation", StringArgumentType.greedyString())
+                                .executes(Parametrics::multi)
+                        ))));
     }
 
     public static class CommandHistory {

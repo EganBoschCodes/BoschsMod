@@ -189,4 +189,18 @@ public class SelectionCommands {
 
         return 1;
     }
+
+    public static int lock(CommandContext<ServerCommandSource> context) {
+        final ServerCommandSource source = context.getSource();
+        BoschMain.LOCK.put(source.getPlayer(), new BlockPos(source.getPosition()));
+
+        return 1;
+    }
+
+    public static int unlock(CommandContext<ServerCommandSource> context) {
+        final ServerCommandSource source = context.getSource();
+        BoschMain.LOCK.remove(source.getPlayer());
+
+        return 1;
+    }
 }

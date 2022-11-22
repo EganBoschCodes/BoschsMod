@@ -20,18 +20,14 @@ public class Isometrics {
         final ServerCommandSource source = context.getSource();
         PlacementHandler ph = new PlacementHandler(source.getWorld());
 
-        String[] palatteStrings = StringArgumentType.getString(context, "block").split(",");
-        BlockPalatte[] palatte = new BlockPalatte[palatteStrings.length];
-        for (int i = 0; i < palatteStrings.length; i++){
-            palatte[i] = new BlockPalatte(palatteStrings[i]);
-        }
+        BlockPalatte[] palatte = BlockPalatte.parse(StringArgumentType.getString(context, "block"));
 
         int boxSize = IntegerArgumentType.getInteger(context, "box size");
 
         String expr = StringArgumentType.getString(context, "equation");
         Map<String, Expression> expressions = Expression.parseAll(expr);
 
-                BlockPos playerPos = new BlockPos(source.getPosition());
+        BlockPos playerPos = BoschMain.LOCK.containsKey(source.getPlayer()) ? BoschMain.LOCK.get(source.getPlayer()) : new BlockPos(source.getPosition());
 
         for(float x = -boxSize; x < boxSize; x++) {
             for(float y = -boxSize; y < boxSize; y++) {
